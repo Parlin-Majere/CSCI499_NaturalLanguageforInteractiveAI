@@ -2,6 +2,7 @@ import tqdm
 import torch
 import argparse
 from sklearn.metrics import accuracy_score
+from torch.utils.data import DataLoader
 
 from utils import (
     get_device,
@@ -26,8 +27,96 @@ def setup_dataloader(args):
 
     # Hint: use the helper functions provided in utils.py
     # ===================================================== #
-    train_loader = None
-    val_loader = None
+
+    # read json file and convert to a single string
+    json_file = open("CSCI499_NaturalLanguageforInteractiveAI\hw1\lang_to_sem_data.json","r")
+
+    # parsing json string
+    import json
+    json_string = json.load(json_file)
+
+    # Extract instruction and label from train and validation
+    train_all_data = json_string["train"]
+    val_all_data = json_string["valid_seen"]
+
+    train_table = build_tokenizer_table(train_all_data,1000)
+    val_table = build_tokenizer_table(val_all_data,1000)
+
+    train_a2i, train_i2a, train_t2i, train_i2t = build_output_tables(train_all_data)
+    val_a2i, val_i2a, val_t2i, val_i2t = build_output_tables(val_all_data)
+
+    # tokenize given instructions
+    train_data = []
+    val_data = []
+
+
+    # used to determine length of padding
+    tokenized_length=40
+    for train_list in train_all_data:
+        for line in train_list:
+            tki = []
+            tkl = []
+            # append start token
+            tki.append(1)
+            instrs = preprocess_string(line[0]).lower().split()
+            targets = line[1]
+            for word in instrs:
+                # check if unkown
+                if word not in train_table[0]:
+                    tki.append(3)
+                else:
+                    tki.append(train_table[0][word])
+            # tokenize labels
+            tkl.append(train_a2i[targets[0]])
+            tkl.append(train_t2i[targets[1]])
+            # append padding
+            while len(tki)<(tokenized_length-1):
+                tki.append(0)
+            # append end token
+            tki.append(2)
+            # append to dataset
+            lt = len(train_data)
+            train_data.append((tki,tkl))
+    
+    for val_lists in val_all_data:
+        for line in val_lists:
+            vki = []
+            vkl = []
+            # append start token
+            vki.append(1)
+            instrs = preprocess_string(line[0]).lower().split()
+            targets = line[1]
+            for word in instrs:
+                # check if unkown
+                if word not in val_table[0]:
+                    vki.append(3)
+                else:
+                    vki.append(val_table[0][word])
+            # tokenize labels
+            vkl.append(val_a2i[targets[0]])
+            vkl.append(val_t2i[targets[1]])
+            # append padding
+            while len(vki)<(tokenized_length-1):
+                vki.append(0)
+            # append end token
+            vki.append(2)
+            # append to dataset
+            val_data.append((vki,vkl))
+
+    # checking length and output
+    print(len(train_data))
+    print(train_data[14056])
+    print(len(val_data))
+    print(val_data[7563])
+
+    # create data loader
+
+    train_loader = DataLoader(train_data, batch_size=24, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_data, batch_size=24, shuffle=True, num_workers=0)
+
+    for item in val_loader:
+        print(item)
+
     return train_loader, val_loader
 
 
@@ -251,7 +340,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--force_cpu", action="store_true", help="debug mode")
     parser.add_argument("--eval", action="store_true", help="run eval")
-    parser.add_argument("--num_epochs", default=1000, help="number of training epochs")
+    parser.add_argument("--num_epochs",type=int, default=1000, help="number of training epochs")
     parser.add_argument(
         "--val_every", default=5, help="number of epochs between every eval loop"
     )
