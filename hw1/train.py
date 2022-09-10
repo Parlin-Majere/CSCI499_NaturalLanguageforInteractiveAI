@@ -2,7 +2,11 @@ import tqdm
 import torch
 import argparse
 from sklearn.metrics import accuracy_score
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader,Dataset
+import torch.nn as nn
+import torch.optim as optim
+from model import AlfredLSTM
+import matplotlib.pyplot as plt
 
 from utils import (
     get_device,
@@ -42,16 +46,17 @@ def setup_dataloader(args):
     train_table = build_tokenizer_table(train_all_data,1000)
     val_table = build_tokenizer_table(val_all_data,1000)
 
+
     train_a2i, train_i2a, train_t2i, train_i2t = build_output_tables(train_all_data)
     val_a2i, val_i2a, val_t2i, val_i2t = build_output_tables(val_all_data)
 
-    # tokenize given instructions
+    # use to store tokenize given instructions
     train_data = []
     val_data = []
 
 
-    # used to determine length of padding
-    tokenized_length=40
+    # tokenize and only saving id's instead of actual words.
+    tokenized_length=60
     for train_list in train_all_data:
         for line in train_list:
             tki = []
@@ -75,8 +80,9 @@ def setup_dataloader(args):
             # append end token
             tki.append(2)
             # append to dataset
-            lt = len(train_data)
-            train_data.append((tki,tkl))
+            tkit = torch.IntTensor(tki)
+            tklt = torch.IntTensor(tkl)
+            train_data.append((tkit,tklt))
     
     for val_lists in val_all_data:
         for line in val_lists:
@@ -101,26 +107,32 @@ def setup_dataloader(args):
             # append end token
             vki.append(2)
             # append to dataset
-            val_data.append((vki,vkl))
+            vkit = torch.IntTensor(vki)
+            vklt = torch.IntTensor(vkl)
+            val_data.append((vkit,vklt))
 
     # checking length and output
-    print(len(train_data))
-    print(train_data[14056])
-    print(len(val_data))
-    print(val_data[7563])
+    #print(len(train_data))
+    #print(train_data[14056])
+    #print(len(val_data))
+    #print(val_data[7563])
+
+    #cropping for easier testing
+    train_data = train_data[0:5000]
+    val_data = val_data[0:1000]
 
     # create data loader
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=32, shuffle=True)
 
-    train_loader = DataLoader(train_data, batch_size=24, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_data, batch_size=24, shuffle=True, num_workers=0)
-
-    for item in val_loader:
-        print(item)
-
-    return train_loader, val_loader
+    #print(len(list(train_loader)))
 
 
-def setup_model(args):
+    # Just throw every table out there in return, why not. (Probably will cause some memory issue, but I will check later)
+    return train_loader, val_loader, (train_table, val_table, train_a2i, train_i2a, train_t2i, train_i2t,val_a2i, val_i2a, val_t2i, val_i2t)
+
+
+def setup_model(args,maps,device):
     """
     return:
         - model: YourOwnModelClass
@@ -128,7 +140,15 @@ def setup_model(args):
     # ================== TODO: CODE HERE ================== #
     # Task: Initialize your model.
     # ===================================================== #
-    model = None
+
+    # model contains 2 output heads, so the output size is inputted as a list of 2 scalars
+    dicts = maps
+    #print(len(dicts))
+
+    embedding_dim = 128
+    hidden_dim = 128
+    model = AlfredLSTM(embedding_dim,hidden_dim,len(dicts[0][0]),[len(dicts[2]),len(dicts[4])])
+    model.to(device)
     return model
 
 
@@ -143,9 +163,10 @@ def setup_optimizer(args, model):
     # Task: Initialize the loss function for action predictions
     # and target predictions. Also initialize your optimizer.
     # ===================================================== #
-    action_criterion = None
-    target_criterion = None
-    optimizer = None
+    action_criterion = nn.NLLLoss()
+    target_criterion = nn.NLLLoss()
+    lr = 3e-5
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     return action_criterion, target_criterion, optimizer
 
@@ -168,20 +189,37 @@ def train_epoch(
     target_preds = []
     action_labels = []
     target_labels = []
+    #print("training epoch triggered")
+    #print(len(list(loader)))
 
     # iterate over each batch in the dataloader
     # NOTE: you may have additional outputs from the loader __getitem__, you can modify this
+    counter = 0
     for (inputs, labels) in loader:
+
+        #print("training epoch start")
+        #print(inputs)
+        #print(labels[:,0].long())
+        #print (counter/len(loader))
+        counter+=1
+
         # put model inputs to device
         inputs, labels = inputs.to(device), labels.to(device)
 
         # calculate the loss and train accuracy and perform backprop
         # NOTE: feel free to change the parameters to the model forward pass here + outputs
         actions_out, targets_out = model(inputs, labels)
+        #actions_out = torch.exp(actions_out)
+        #targets_out = torch.exp(targets_out)
+
+        #print ("action and target out got")
 
         # calculate the action and target prediction loss
         # NOTE: we assume that labels is a tensor of size Bx2 where labels[:, 0] is the
         # action label and labels[:, 1] is the target label
+        #print(actions_out.shape)
+        #print(actions_out.squeeze().shape)
+        #print(labels[:,0].long().shape)
         action_loss = action_criterion(actions_out.squeeze(), labels[:, 0].long())
         target_loss = target_criterion(targets_out.squeeze(), labels[:, 1].long())
 
@@ -243,8 +281,17 @@ def train(args, model, loaders, optimizer, action_criterion, target_criterion, d
     # weights via backpropagation
     model.train()
 
-    for epoch in tqdm.tqdm(range(args.num_epochs)):
+    tal = []
+    ttl = []
+    taa = []
+    tta = []
+    val = []
+    vtl = []
+    vaa = []
+    vta = []
 
+    for epoch in tqdm.tqdm(range(args.num_epochs)):
+        #print("training started")
         # train single epoch
         # returns loss for action and target prediction and accuracy
         (
@@ -270,6 +317,12 @@ def train(args, model, loaders, optimizer, action_criterion, target_criterion, d
             f"train action acc : {train_action_acc} | train target acc: {train_target_acc}"
         )
 
+        # some registering
+        tal.append(train_action_loss)
+        ttl.append(train_target_loss)
+        taa.append(train_action_acc)
+        tta.append(train_target_acc)
+
         # run validation every so often
         # during eval, we run a forward pass through the model and compute
         # loss and accuracy but we don't update the model weights
@@ -288,8 +341,12 @@ def train(args, model, loaders, optimizer, action_criterion, target_criterion, d
                 f"val action loss : {val_action_loss} | val target loss: {val_target_loss}"
             )
             print(
-                f"val action acc : {val_action_acc} | val target losaccs: {val_target_acc}"
+                f"val action acc : {val_action_acc} | val target accs: {val_target_acc}"
             )
+            val.append(val_action_loss)
+            vtl.append(val_target_loss)
+            vaa.append(val_action_acc)
+            vta.append(val_target_acc)
 
     # ================== TODO: CODE HERE ================== #
     # Task: Implement some code to keep track of the model training and
@@ -297,6 +354,32 @@ def train(args, model, loaders, optimizer, action_criterion, target_criterion, d
     # 4 figures for 1) training loss, 2) training accuracy,
     # 3) validation loss, 4) validation accuracy
     # ===================================================== #
+    # some plotting
+    trainepoch = range(0,len(tal))
+    valepoch = range(0,len(val))
+    allgraph, ax = plt.subplots(2,2)
+    ax[0,0].plot(trainepoch,tal,label="Train Action Loss")
+    ax[0,0].plot(trainepoch,ttl,label="Train Target Loss")
+    ax[0,0].legend()
+    ax[0,0].set_title("Training Loss")
+    ax[0,1].plot(trainepoch,taa,label="Train Action Acc")
+    ax[0,1].plot(trainepoch,tta,label="Train Target Acc")
+    ax[0,1].legend()
+    ax[0,1].set_title("Training Acc")
+    ax[1,0].plot(valepoch,val,label="Validation Action Loss")
+    ax[1,0].plot(valepoch,vtl,label="Validation Target Loss")
+    ax[1,0].legend()
+    ax[1,0].set_title("Validation Loss")
+    ax[1,1].plot(valepoch,vaa,label="Validation Action Acc")
+    ax[1,1].plot(valepoch,vta,label="Validation Target Acc")
+    ax[1,1].legend()
+    ax[1,1].set_title("Validation Acc")
+
+    allgraph.suptitle("Statistics")
+    allgraph.tight_layout()
+
+    plt.savefig("./stats.pdf")
+
 
 
 def main(args):
@@ -340,7 +423,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--force_cpu", action="store_true", help="debug mode")
     parser.add_argument("--eval", action="store_true", help="run eval")
-    parser.add_argument("--num_epochs",type=int, default=1000, help="number of training epochs")
+    parser.add_argument("--num_epochs",type=int, default=5, help="number of training epochs")
     parser.add_argument(
         "--val_every", default=5, help="number of epochs between every eval loop"
     )
