@@ -44,11 +44,11 @@ def setup_dataloader(args):
     val_all_data = json_string["valid_seen"]
 
     train_table = build_tokenizer_table(train_all_data,1000)
-    val_table = build_tokenizer_table(val_all_data,1000)
+    val_table = train_table
 
 
     train_a2i, train_i2a, train_t2i, train_i2t = build_output_tables(train_all_data)
-    val_a2i, val_i2a, val_t2i, val_i2t = build_output_tables(val_all_data)
+    val_a2i, val_i2a, val_t2i, val_i2t = build_output_tables(train_all_data)
 
     # use to store tokenize given instructions
     train_data = []
@@ -423,7 +423,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("--force_cpu", action="store_true", help="debug mode")
     parser.add_argument("--eval", action="store_true", help="run eval")
-    parser.add_argument("--num_epochs",type=int, default=5, help="number of training epochs")
+    parser.add_argument("--num_epochs",type=int, default=1000, help="number of training epochs")
     parser.add_argument(
         "--val_every", default=5, help="number of epochs between every eval loop"
     )
