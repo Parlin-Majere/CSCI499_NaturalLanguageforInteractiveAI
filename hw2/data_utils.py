@@ -19,7 +19,7 @@ def process_book_dir(d, max_per_book=None):
             if fn.split(".")[-1] == "txt":
                 n_files += 1
                 book_title = fn.split(".")[0]
-                with open(os.path.join(d, fn), "r") as f:
+                with open(os.path.join(d, fn), "r", encoding="utf-8") as f:
                     new_lines = [s for s in f.readlines()]
                     if max_per_book is not None and max_per_book < len(new_lines):
                         new_lines = new_lines[:max_per_book]

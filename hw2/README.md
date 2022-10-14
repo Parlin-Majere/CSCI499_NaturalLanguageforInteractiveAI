@@ -33,9 +33,7 @@ While debugging, consider taking a small subset of the data and inserting break 
 
 ```
 Train:
-python3 train.py \
-    --analogies_fn analogies_v3000_1309.json \
-    --data_dir books/ \
+python train.py --analogies_fn analogies_v3000_1309.json --data_dir books/ 
 
 Evaluation:
 python train.py \

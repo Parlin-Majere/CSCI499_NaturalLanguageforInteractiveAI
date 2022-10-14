@@ -3,11 +3,14 @@ import os
 import tqdm
 import torch
 from sklearn.metrics import accuracy_score
+import torch.nn as nn
 
 from eval_utils import downstream_validation
 import utils
 import data_utils
-
+from model import CBOW
+import random
+from torch.utils.data import DataLoader
 
 def setup_dataloader(args):
     """
@@ -17,7 +20,7 @@ def setup_dataloader(args):
     """
 
     # read in training data from books dataset
-    sentences = data_utils.process_book_dir(args.books_dir)
+    sentences = data_utils.process_book_dir(args.data_dir)
 
     # build one hot maps for input and output
     (
@@ -45,9 +48,54 @@ def setup_dataloader(args):
     # dataloaders.
     # ===================================================== #
 
-    train_loader = None
-    val_loader = None
-    return train_loader, val_loader
+    print(len(sentences))
+    #print(encoded_sentences[10000])
+
+    # context to target word vector
+    C2T = []
+    window = 4
+    for sentence in encoded_sentences:
+        # extract non-padded encoded sentence, since there is no need to use all the padding at the end for not going to process that tensor anyway
+        temps = []
+        for tk in sentence:
+            if(tk!=0):
+                temps.append(tk)
+            else:
+                break
+
+        for i in range (window//2):
+            temps.insert(0,0)
+            temps.append(0)
+
+        for index, word in enumerate(temps):
+            temp = []
+
+            # Construct pairing
+            if index>=(window//2) and index<(len(temps)-window//2):
+                temp.append(temps[index-2])
+                temp.append(temps[index-1])
+                temp.append(temps[index+1])
+                temp.append(temps[index+2])
+                # tensor conversion
+                ttemp = torch.IntTensor(temp)
+                C2T.append([ttemp,word])
+    
+    #print(C2T)
+
+    # random sample to notify finish
+    print (len(C2T))
+    print (C2T[40000])
+
+    # random split train and val
+    random.shuffle(C2T)
+    train_len = int(len(C2T)*0.7)
+    train_set = C2T[:train_len]
+    val_set = C2T[train_len:]
+
+
+    train_loader = DataLoader(train_set, batch_size=128, shuffle=True)
+    val_loader = DataLoader(val_set, batch_size=128, shuffle=True)
+    return train_loader, val_loader, index_to_vocab
 
 
 def setup_model(args):
@@ -58,7 +106,8 @@ def setup_model(args):
     # ================== TODO: CODE HERE ================== #
     # Task: Initialize your CBOW or Skip-Gram model.
     # ===================================================== #
-    model = None
+    vocab_size = 3004
+    model = CBOW(vocab_size)
     return model
 
 
@@ -72,8 +121,8 @@ def setup_optimizer(args, model):
     # Task: Initialize the loss function for predictions. 
     # Also initialize your optimizer.
     # ===================================================== #
-    criterion = None
-    optimizer = None
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     return criterion, optimizer
 
 
@@ -101,7 +150,7 @@ def train_epoch(
 
         # calculate the loss and train accuracy and perform backprop
         # NOTE: feel free to change the parameters to the model forward pass here + outputs
-        pred_logits = model(inputs, labels)
+        pred_logits = model(inputs)
 
         # calculate prediction loss
         loss = criterion(pred_logits.squeeze(), labels)
@@ -146,6 +195,9 @@ def validate(args, model, loader, optimizer, criterion, device):
 
 
 def main(args):
+
+    print("starting")
+
     device = utils.get_device(args.force_cpu)
 
     # load analogies for downstream eval
@@ -158,7 +210,7 @@ def main(args):
         return
 
     # get dataloaders
-    train_loader, val_loader = setup_dataloader(args)
+    train_loader, val_loader, i2v = setup_dataloader(args)
     loaders = {"train": train_loader, "val": val_loader}
 
     # build model
@@ -182,7 +234,7 @@ def main(args):
 
         print(f"train loss : {train_loss} | train acc: {train_acc}")
 
-        if epoch % args.val_every == 0:
+        if epoch == 30:
             val_loss, val_acc = validate(
                 args,
                 model,
@@ -203,7 +255,7 @@ def main(args):
             # ===================================================== #
 
             # save word vectors
-            word_vec_file = os.path.join(args.outputs_dir, args.word_vector_fn)
+            word_vec_file = os.path.join(args.output_dir, args.word_vector_fn)
             print("saving word vec to ", word_vec_file)
             utils.save_word2vec_format(word_vec_file, model, i2v)
 

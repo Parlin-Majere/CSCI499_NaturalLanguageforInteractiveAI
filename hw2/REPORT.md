@@ -1,0 +1,1 @@
+Something to note: encoding enforcing, somehow my pc uses gbk if not enforced (probaboly due to having simplified chinese as one of the language, utf-8 enforcing is favored. Took a while to figure it out)
