@@ -1,22 +1,22 @@
 import torch.nn as nn
 
 class CBOW(nn.Module):
-    vocab_size = 0
-    embedding_dim = 128
     def __init__(self, vocabs_size):
         super(CBOW, self).__init__()
-        vocab_size = vocabs_size
-        self.embeddings = nn.Embedding(
-            num_embeddings = vocab_size,
-            embedding_dim = 128,
-            max_norm = 1
+        self.vocab_size = vocabs_size
+        self.embedding_dim = 128
+        self.embed = nn.Embedding(
+            num_embeddings = self.vocab_size,
+            embedding_dim = self.embedding_dim,
         )
-        self.linear = nn.Linear(
-            in_features = 128,
-            out_features = vocab_size
-        )
+        self.linear1 = nn.Linear(self.embedding_dim,128)
+        self.activation_function1 = nn.ReLU()
+        self.linear2 = nn.Linear(128,self.vocab_size)
     def forward(self, input):
-        x = self.embeddings(input)
-        x = x.mean(axis=1)
-        x = self.linear(x)
-        return x
+        embeds = self.embed(input)
+        embeds = embeds.mean(axis=1)
+        out1 = self.linear1(embeds)
+        out1 = self.activation_function1(out1)
+        out2 = self.linear2(out1)
+
+        return out2

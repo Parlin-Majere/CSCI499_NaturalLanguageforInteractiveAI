@@ -106,8 +106,9 @@ def setup_model(args):
     # ================== TODO: CODE HERE ================== #
     # Task: Initialize your CBOW or Skip-Gram model.
     # ===================================================== #
-    vocab_size = 3004
+    vocab_size = 3000
     model = CBOW(vocab_size)
+    model.cuda()
     return model
 
 
@@ -204,7 +205,7 @@ def main(args):
     external_val_analogies = utils.read_analogies(args.analogies_fn)
 
     if args.downstream_eval:
-        word_vec_file = os.path.join(args.outputs_dir, args.word_vector_fn)
+        word_vec_file = os.path.join(args.output_dir, args.word_vector_fn)
         assert os.path.exists(word_vec_file), "need to train the word vecs first!"
         downstream_validation(word_vec_file, external_val_analogies)
         return
@@ -215,6 +216,7 @@ def main(args):
 
     # build model
     model = setup_model(args)
+    model.cuda()
     print(model)
 
     # get optimizer
@@ -234,7 +236,7 @@ def main(args):
 
         print(f"train loss : {train_loss} | train acc: {train_acc}")
 
-        if epoch == 30:
+        if epoch % args.val_every == 0:
             val_loss, val_acc = validate(
                 args,
                 model,
