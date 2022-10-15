@@ -11,6 +11,7 @@ import data_utils
 from model import CBOW
 import random
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
 def setup_dataloader(args):
     """
@@ -222,6 +223,12 @@ def main(args):
     # get optimizer
     criterion, optimizer = setup_optimizer(args, model)
 
+    # Store Information for graph
+    tl = []
+    ta = []
+    vl = []
+    va = []
+
     for epoch in range(args.num_epochs):
         # train model for a single epoch
         print(f"Epoch {epoch}")
@@ -236,6 +243,10 @@ def main(args):
 
         print(f"train loss : {train_loss} | train acc: {train_acc}")
 
+        # Logging training loss and accuracy
+        tl.append(train_loss)
+        ta.append(train_acc)
+
         if epoch % args.val_every == 0:
             val_loss, val_acc = validate(
                 args,
@@ -246,6 +257,10 @@ def main(args):
                 device,
             )
             print(f"val loss : {val_loss} | val acc: {val_acc}")
+
+            # Logging validation loss and accuracy
+            vl.append(val_loss)
+            va.append(val_acc)
 
             # ======================= NOTE ======================== #
             # Saving the word vectors to disk and running the eval
@@ -269,6 +284,45 @@ def main(args):
             ckpt_file = os.path.join(args.output_dir, "model.ckpt")
             print("saving model to ", ckpt_file)
             torch.save(model, ckpt_file)
+    
+    # Drawing Graph
+    trainepoch = range(0,len(tl))
+    valepoch = range(0,len(vl))
+
+    print(tl)
+    print(ta)
+    print(vl)
+    print(va)
+    print(trainepoch)
+    print(valepoch)
+
+    plt.plot(trainepoch, tl)
+    plt.xlabel("training epoch")
+    plt.ylabel("training loss")
+    plt.title("training loss")
+    plt.savefig("./statistics/trainingloss.pdf")
+    plt.clf()
+
+    plt.plot(trainepoch, ta)
+    plt.xlabel("training epoch")
+    plt.ylabel("training accuracy")
+    plt.title("training accuracy")
+    plt.savefig("./statistics/trainingacc.pdf")
+    plt.clf()
+
+    plt.plot(valepoch, vl)
+    plt.xlabel("validation epoch")
+    plt.ylabel("validation loss")
+    plt.title("validation loss")
+    plt.savefig("./statistics/valloss.pdf")
+    plt.clf()
+
+    plt.plot(valepoch, va)
+    plt.xlabel("validation epoch")
+    plt.ylabel("validation accuracy")
+    plt.title("validation accuracy")
+    plt.savefig("./statistics/valacc.pdf")
+    plt.clf()
 
 
 if __name__ == "__main__":
