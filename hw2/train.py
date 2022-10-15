@@ -54,7 +54,7 @@ def setup_dataloader(args):
 
     # context to target word vector
     C2T = []
-    window = 4
+    window = 6
     for sentence in encoded_sentences:
         # extract non-padded encoded sentence, since there is no need to use all the padding at the end for not going to process that tensor anyway
         temps = []
@@ -73,10 +73,12 @@ def setup_dataloader(args):
 
             # Construct pairing
             if index>=(window//2) and index<(len(temps)-window//2):
+                temp.append(temps[index-3])
                 temp.append(temps[index-2])
                 temp.append(temps[index-1])
                 temp.append(temps[index+1])
                 temp.append(temps[index+2])
+                temp.append(temps[index+3])
                 # tensor conversion
                 ttemp = torch.IntTensor(temp)
                 C2T.append([ttemp,word])
@@ -109,7 +111,8 @@ def setup_model(args):
     # ===================================================== #
     vocab_size = 3000
     model = CBOW(vocab_size)
-    model.cuda()
+    # forcing cuda
+    # model.cuda()
     return model
 
 
@@ -217,7 +220,8 @@ def main(args):
 
     # build model
     model = setup_model(args)
-    model.cuda()
+    # forcing cuda
+    # model.cuda()
     print(model)
 
     # get optimizer
@@ -300,28 +304,28 @@ def main(args):
     plt.xlabel("training epoch")
     plt.ylabel("training loss")
     plt.title("training loss")
-    plt.savefig("./statistics/trainingloss.pdf")
+    plt.savefig("./statistics-window-6/trainingloss.pdf")
     plt.clf()
 
     plt.plot(trainepoch, ta)
     plt.xlabel("training epoch")
     plt.ylabel("training accuracy")
     plt.title("training accuracy")
-    plt.savefig("./statistics/trainingacc.pdf")
+    plt.savefig("./statistics-window-6/trainingacc.pdf")
     plt.clf()
 
     plt.plot(valepoch, vl)
     plt.xlabel("validation epoch")
     plt.ylabel("validation loss")
     plt.title("validation loss")
-    plt.savefig("./statistics/valloss.pdf")
+    plt.savefig("./statistics-window-6/valloss.pdf")
     plt.clf()
 
     plt.plot(valepoch, va)
     plt.xlabel("validation epoch")
     plt.ylabel("validation accuracy")
     plt.title("validation accuracy")
-    plt.savefig("./statistics/valacc.pdf")
+    plt.savefig("./statistics-window-6/valacc.pdf")
     plt.clf()
 
 
