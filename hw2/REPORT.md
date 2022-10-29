@@ -139,3 +139,32 @@ Window Size 6 Result
         past_tense      64      0.0625  0.1387  7
         plural_nouns    107     0.0748  0.1214  8
         plural_verbs    73      0.0822  0.1202  8
+
+Corrected CBOW with context window 6
+...Total performance across all 1309 analogies: 0.0558 (Exact); 0.0911 (MRR); 11 (MR)
+...Analogy performance across 969 "sem" relation types: 0.0124 (Exact); 0.0314 (MRR); 32 (MR)
+        relation        N       exact   MRR     MR
+        capitals        1       0.0000  0.5000  2
+        binary_gender   12      0.1667  0.3814  3
+        antonym 54      0.0370  0.0615  16
+        member  4       0.0000  0.0071  141
+        hypernomy       542     0.0074  0.0206  49
+        similar 117     0.0171  0.0332  30
+        partof  29      0.0000  0.0232  43
+        instanceof      9       0.1111  0.1146  9
+        derivedfrom     133     0.0075  0.0258  39
+        hascontext      32      0.0000  0.0072  138
+        relatedto       10      0.0000  0.0512  20
+        attributeof     11      0.0000  0.0331  30
+        causes  6       0.0000  0.0688  15
+        entails 9       0.0000  0.0330  30
+...Analogy performance across 340 "syn" relation types: 0.1794 (Exact); 0.2612 (MRR); 4 (MR)
+        relation        N       exact   MRR     MR
+        adj_adv 22      0.0000  0.0500  20
+        comparative     7       0.5714  0.6203  2
+        superlative     3       0.0000  0.2133  5
+        present_participle      62      0.1935  0.2635  4
+        denonym 2       0.0000  0.2507  4
+        past_tense      64      0.2969  0.3783  3
+        plural_nouns    107     0.1682  0.2498  4
+        plural_verbs    73      0.1096  0.2049  5

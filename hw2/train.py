@@ -112,7 +112,7 @@ def setup_model(args):
     vocab_size = 3000
     model = CBOW(vocab_size)
     # forcing cuda
-    # model.cuda()
+    model.cuda()
     return model
 
 
@@ -221,7 +221,7 @@ def main(args):
     # build model
     model = setup_model(args)
     # forcing cuda
-    # model.cuda()
+    model.cuda()
     print(model)
 
     # get optimizer
@@ -304,28 +304,28 @@ def main(args):
     plt.xlabel("training epoch")
     plt.ylabel("training loss")
     plt.title("training loss")
-    plt.savefig("./statistics-window-6/trainingloss.pdf")
+    plt.savefig("./statistics-corrected-CBOW/trainingloss.pdf")
     plt.clf()
 
     plt.plot(trainepoch, ta)
     plt.xlabel("training epoch")
     plt.ylabel("training accuracy")
     plt.title("training accuracy")
-    plt.savefig("./statistics-window-6/trainingacc.pdf")
+    plt.savefig("./statistics-corrected-CBOW/trainingacc.pdf")
     plt.clf()
 
     plt.plot(valepoch, vl)
     plt.xlabel("validation epoch")
     plt.ylabel("validation loss")
     plt.title("validation loss")
-    plt.savefig("./statistics-window-6/valloss.pdf")
+    plt.savefig("./statistics-corrected-CBOW/valloss.pdf")
     plt.clf()
 
     plt.plot(valepoch, va)
     plt.xlabel("validation epoch")
     plt.ylabel("validation accuracy")
     plt.title("validation accuracy")
-    plt.savefig("./statistics-window-6/valacc.pdf")
+    plt.savefig("./statistics-corrected-CBOW/valacc.pdf")
     plt.clf()
 
 
