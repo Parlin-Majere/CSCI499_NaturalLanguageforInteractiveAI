@@ -304,28 +304,28 @@ def main(args):
     plt.xlabel("training epoch")
     plt.ylabel("training loss")
     plt.title("training loss")
-    plt.savefig("./statistics-corrected-CBOW/trainingloss.pdf")
+    plt.savefig("./statistics-corrected-CBOW-100epoch/trainingloss.pdf")
     plt.clf()
 
     plt.plot(trainepoch, ta)
     plt.xlabel("training epoch")
     plt.ylabel("training accuracy")
     plt.title("training accuracy")
-    plt.savefig("./statistics-corrected-CBOW/trainingacc.pdf")
+    plt.savefig("./statistics-corrected-CBOW-100epoch/trainingacc.pdf")
     plt.clf()
 
     plt.plot(valepoch, vl)
     plt.xlabel("validation epoch")
     plt.ylabel("validation loss")
     plt.title("validation loss")
-    plt.savefig("./statistics-corrected-CBOW/valloss.pdf")
+    plt.savefig("./statistics-corrected-CBOW-100epoch/valloss.pdf")
     plt.clf()
 
     plt.plot(valepoch, va)
     plt.xlabel("validation epoch")
     plt.ylabel("validation accuracy")
     plt.title("validation accuracy")
-    plt.savefig("./statistics-corrected-CBOW/valacc.pdf")
+    plt.savefig("./statistics-corrected-CBOW-100epoch/valacc.pdf")
     plt.clf()
 
 
