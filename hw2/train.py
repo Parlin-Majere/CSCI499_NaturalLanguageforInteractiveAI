@@ -127,7 +127,7 @@ def setup_optimizer(args, model):
     # Also initialize your optimizer.
     # ===================================================== #
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
     return criterion, optimizer
 
 
