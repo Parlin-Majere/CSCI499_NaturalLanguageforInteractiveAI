@@ -52,10 +52,16 @@ def setup_dataloader(args):
     print(len(sentences))
     #print(encoded_sentences[10000])
 
-    # context to target word vector
-    C2T = []
+    # split train sentences and val sentences
+    random.shuffle(encoded_sentences)
+    train_sentences_len = int(len(encoded_sentences)*0.7)
+    train_sentences = encoded_sentences[:train_sentences_len]
+    val_sentences = encoded_sentences[train_sentences_len:]
+
+    # Context to target for each train and val
+    train_C2T = []
     window = 6
-    for sentence in encoded_sentences:
+    for sentence in train_sentences:
         # extract non-padded encoded sentence, since there is no need to use all the padding at the end for not going to process that tensor anyway
         temps = []
         for tk in sentence:
@@ -81,23 +87,83 @@ def setup_dataloader(args):
                 temp.append(temps[index+3])
                 # tensor conversion
                 ttemp = torch.IntTensor(temp)
-                C2T.append([ttemp,word])
+                train_C2T.append([ttemp,word])
+
+    val_C2T = []
+    for sentence in val_sentences:
+        # extract non-padded encoded sentence, since there is no need to use all the padding at the end for not going to process that tensor anyway
+        temps = []
+        for tk in sentence:
+            if(tk!=0):
+                temps.append(tk)
+            else:
+                break
+
+        for i in range (window//2):
+            temps.insert(0,0)
+            temps.append(0)
+
+        for index, word in enumerate(temps):
+            temp = []
+
+            # Construct pairing
+            if index>=(window//2) and index<(len(temps)-window//2):
+                temp.append(temps[index-3])
+                temp.append(temps[index-2])
+                temp.append(temps[index-1])
+                temp.append(temps[index+1])
+                temp.append(temps[index+2])
+                temp.append(temps[index+3])
+                # tensor conversion
+                ttemp = torch.IntTensor(temp)
+                val_C2T.append([ttemp,word])
+
+    # context to target word vector
+    #C2T = []
+    #window = 6
+    #for sentence in encoded_sentences:
+        # extract non-padded encoded sentence, since there is no need to use all the padding at the end for not going to process that tensor anyway
+    #    temps = []
+    #    for tk in sentence:
+    #        if(tk!=0):
+    #            temps.append(tk)
+    #        else:
+    #            break
+    #
+    #    for i in range (window//2):
+    #        temps.insert(0,0)
+    #        temps.append(0)
+    #
+    #    for index, word in enumerate(temps):
+    #        temp = []
+    #
+            # Construct pairing
+    #        if index>=(window//2) and index<(len(temps)-window//2):
+    #            temp.append(temps[index-3])
+    #            temp.append(temps[index-2])
+    #            temp.append(temps[index-1])
+    #            temp.append(temps[index+1])
+    #            temp.append(temps[index+2])
+    #            temp.append(temps[index+3])
+    #            # tensor conversion
+    #            ttemp = torch.IntTensor(temp)
+    #            C2T.append([ttemp,word])
     
     #print(C2T)
 
     # random sample to notify finish
-    print (len(C2T))
-    print (C2T[40000])
+    print (len(train_C2T))
+    print (train_C2T[40000])
 
     # random split train and val
-    random.shuffle(C2T)
-    train_len = int(len(C2T)*0.7)
-    train_set = C2T[:train_len]
-    val_set = C2T[train_len:]
+    #random.shuffle(C2T)
+    #train_len = int(len(C2T)*0.7)
+    #train_set = C2T[:train_len]
+    #val_set = C2T[train_len:]
 
 
-    train_loader = DataLoader(train_set, batch_size=128, shuffle=True)
-    val_loader = DataLoader(val_set, batch_size=128, shuffle=True)
+    train_loader = DataLoader(train_C2T, batch_size=128, shuffle=True)
+    val_loader = DataLoader(val_C2T, batch_size=128, shuffle=True)
     return train_loader, val_loader, index_to_vocab
 
 
@@ -127,7 +193,7 @@ def setup_optimizer(args, model):
     # Also initialize your optimizer.
     # ===================================================== #
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     return criterion, optimizer
 
 
@@ -304,28 +370,28 @@ def main(args):
     plt.xlabel("training epoch")
     plt.ylabel("training loss")
     plt.title("training loss")
-    plt.savefig("./statistics-corrected-CBOW-valepoch-80/trainingloss.pdf")
+    plt.savefig("./statistic-temp/trainingloss.pdf")
     plt.clf()
 
     plt.plot(trainepoch, ta)
     plt.xlabel("training epoch")
     plt.ylabel("training accuracy")
     plt.title("training accuracy")
-    plt.savefig("./statistics-corrected-CBOW-valepoch-80/trainingacc.pdf")
+    plt.savefig("./statistic-temp/trainingacc.pdf")
     plt.clf()
 
     plt.plot(valepoch, vl)
     plt.xlabel("validation epoch")
     plt.ylabel("validation loss")
     plt.title("validation loss")
-    plt.savefig("./statistics-corrected-CBOW-valepoch-80/valloss.pdf")
+    plt.savefig("./statistic-temp/valloss.pdf")
     plt.clf()
 
     plt.plot(valepoch, va)
     plt.xlabel("validation epoch")
     plt.ylabel("validation accuracy")
     plt.title("validation accuracy")
-    plt.savefig("./statistics-corrected-CBOW-valepoch-80/valacc.pdf")
+    plt.savefig("./statistic-temp/valacc.pdf")
     plt.clf()
 
 
