@@ -20,6 +20,7 @@ def setup_dataloader(args):
         - train_loader: torch.utils.data.Dataloader
         - val_loader: torch.utils.data.Dataloader
     """
+    #print(args.in_data_fn)
     # ================== TODO: CODE HERE ================== #
     # Task: Load the training data from provided json file.
     # Perform some preprocessing to tokenize the natural
@@ -32,7 +33,7 @@ def setup_dataloader(args):
     
     # tokenization
     # read json file and convert to a single string
-    json_file = open("\lang_to_sem_data.json","r")
+    json_file = open(args.in_data_fn,"r")
 
     # parsing json string
     import json
@@ -59,6 +60,8 @@ def setup_dataloader(args):
     val_pad_length = pad_length * 12 - 22
 
     print(train_all_string[100])
+    for epi in train_all_string[100]:
+        print(epi)
 
     # for each episode, process strings, and then tokenize
     for episode in train_all_string:
@@ -73,16 +76,15 @@ def setup_dataloader(args):
 
         # since doing seq2seq, need to combine all single entries in episode into a single sequence
         # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
-        for single in episode:
-            for instruction, [action, target] in single:
-                normalized = preprocess_string(instruction)
-                for word in normalized:
-                    if word in v2i:
-                        ins.append(v2i[word])
-                    else:
-                        ins.append(3)
-                high.append(a2i[action])
-                high.append(t2i[target])
+        for instruction, [action, target] in episode:
+            normalized = preprocess_string(instruction)
+            for word in normalized:
+                if word in v2i:
+                    ins.append(v2i[word])
+                else:
+                    ins.append(3)
+            high.append(a2i[action])
+            high.append(t2i[target])
 
         # append end token
         ins.append(2)
@@ -111,16 +113,15 @@ def setup_dataloader(args):
         high.append(1)
         # since doing seq2seq, need to combine all single entries in episode into a single sequence
         # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
-        for single in episode:
-            for instruction, [action, target] in single:
-                normalized = preprocess_string(instruction)
-                for word in normalized:
-                    if word in v2i:
-                        ins.append(v2i[word])
-                    else:
-                        ins.append(3)
-                high.append(a2i[action])
-                high.append(t2i[target])
+        for instruction, [action, target] in episode:
+            normalized = preprocess_string(instruction)
+            for word in normalized:
+                if word in v2i:
+                    ins.append(v2i[word])
+                else:
+                    ins.append(3)
+            high.append(a2i[action])
+            high.append(t2i[target])
 
         # append end token
         ins.append(2)
@@ -137,12 +138,12 @@ def setup_dataloader(args):
         #append to train_list
         val_list.append(epi)
 
-    train_loader = DataLoader(train_list,batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_list, batch_size=32, shuffle=True)
-    return train_loader, val_loader
+    train_loader = DataLoader(train_list,batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_list, batch_size=args.batch_size, shuffle=True)
+    return train_loader, val_loader, (v2i, i2v, a2i, i2a, t2i, i2t)
 
 
-def setup_model(args,input,target):
+def setup_model(args, map, device):
     """
     return:
         - model: YourOwnModelClass
@@ -164,6 +165,7 @@ def setup_model(args,input,target):
     # of feeding the model prediction into the recurrent model,
     # you will give the embedding of the target token.
     # ===================================================== #
+    print(map)
     input_dim = len(input)
     output_dim = len(target)
     embedding_dim = 256
