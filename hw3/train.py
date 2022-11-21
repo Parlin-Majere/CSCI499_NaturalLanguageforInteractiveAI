@@ -2,7 +2,7 @@ import tqdm
 import torch
 import argparse
 from sklearn.metrics import accuracy_score
-
+from torch.utils.data import DataLoader
 from utils import (
     get_device,
     preprocess_string,
@@ -10,6 +10,8 @@ from utils import (
     build_output_tables,
     prefix_match
 )
+
+from model import Encoder, Decoder, EncoderDecoder
 
 
 def setup_dataloader(args):
@@ -27,12 +29,120 @@ def setup_dataloader(args):
 
     # Hint: use the helper functions provided in utils.py
     # ===================================================== #
-    train_loader = None
-    val_loader = None
+    
+    # tokenization
+    # read json file and convert to a single string
+    json_file = open("\lang_to_sem_data.json","r")
+
+    # parsing json string
+    import json
+    json_string = json.load(json_file)
+
+    # Extract instruction and label from train and validation
+    train_all_string = json_string["train"]
+    val_all_string = json_string["valid_seen"]
+
+    # Empty list for storing tokenized inputs
+    train_list = []
+    val_list = []
+
+    # tokenizer table
+    v2i, i2v, pad_length = build_tokenizer_table(train_all_string)
+    # output table
+    a2i, i2a, t2i, i2t = build_output_tables(train_all_string)
+
+    # padding length calculated as padding_length * len(episode) - (len(episode)-1)*2 
+    # last part to get rid of the extra start and end tokens as they are not quite needed here.
+    # very weirdly the number of instructions in training dataset are all 11 with validation being 12
+    # don't know if it is going to cause a problem
+    train_pad_length = pad_length * 11 - 20
+    val_pad_length = pad_length * 12 - 22
+
+    print(train_all_string[100])
+
+    # for each episode, process strings, and then tokenize
+    for episode in train_all_string:
+        epi = []
+        # each entry in an episode is processed individually
+        ins = []
+        high = []
+
+        # append start token
+        ins.append(1)
+        high.append(1)
+
+        # since doing seq2seq, need to combine all single entries in episode into a single sequence
+        # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
+        for single in episode:
+            for instruction, [action, target] in single:
+                normalized = preprocess_string(instruction)
+                for word in normalized:
+                    if word in v2i:
+                        ins.append(v2i[word])
+                    else:
+                        ins.append(3)
+                high.append(a2i[action])
+                high.append(t2i[target])
+
+        # append end token
+        ins.append(2)
+        high.append(2)
+
+        # pad the instruction sequence
+        while (len(ins)<train_pad_length-1):
+            ins.append(0)
+        
+        # append to episode
+        epi.append(ins)
+        epi.append(high)
+
+        #append to train_list
+        train_list.append(epi)
+
+    # same thing for validation data
+    for episode in val_all_string:
+        epi = []
+        # each entry in an episode is processed individually
+        ins = []
+        high = []
+
+        # append start token
+        ins.append(1)
+        high.append(1)
+        # since doing seq2seq, need to combine all single entries in episode into a single sequence
+        # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
+        for single in episode:
+            for instruction, [action, target] in single:
+                normalized = preprocess_string(instruction)
+                for word in normalized:
+                    if word in v2i:
+                        ins.append(v2i[word])
+                    else:
+                        ins.append(3)
+                high.append(a2i[action])
+                high.append(t2i[target])
+
+        # append end token
+        ins.append(2)
+        high.append(2)
+
+        # pad the instruction sequence
+        while (len(ins)<val_pad_length-1):
+            ins.append(0)
+        
+        # append to episode
+        epi.append(ins)
+        epi.append(high)
+
+        #append to train_list
+        val_list.append(epi)
+
+    train_loader = DataLoader(train_list,batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_list, batch_size=32, shuffle=True)
     return train_loader, val_loader
 
 
-def setup_model(args):
+def setup_model(args,input,target):
     """
     return:
         - model: YourOwnModelClass
@@ -54,7 +164,14 @@ def setup_model(args):
     # of feeding the model prediction into the recurrent model,
     # you will give the embedding of the target token.
     # ===================================================== #
-    model = None
+    input_dim = len(input)
+    output_dim = len(target)
+    embedding_dim = 256
+    hidden_dim = 512
+    encoder = Encoder(input_dim, embedding_dim, hidden_dim)
+    decoder = Decoder(output_dim, embedding_dim, hidden_dim)
+
+    model = EncoderDecoder(encoder,decoder)
     return model
 
 
@@ -62,14 +179,14 @@ def setup_optimizer(args, model):
     """
     return:
         - criterion: loss_fn
-        - optimizer: torch.optim
+        - optimizer: torch.optimvi
     """
     # ================== TODO: CODE HERE ================== #
     # Task: Initialize the loss function for action predictions
     # and target predictions. Also initialize your optimizer.
     # ===================================================== #
-    criterion = None
-    optimizer = None
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters())
 
     return criterion, optimizer
 
