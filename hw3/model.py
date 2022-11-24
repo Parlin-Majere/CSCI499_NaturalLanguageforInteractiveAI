@@ -91,6 +91,7 @@ class EncoderDecoder(nn.Module):
         #print("target shape: ",target.shape)
         #print("target[0] shape: ",target.shape)
         #print("encoderdecoder input: ", input.shape)
+        #print(self.training)
         atarget = []
         ttarget = []
         for pairs in target:
@@ -141,9 +142,13 @@ class EncoderDecoder(nn.Module):
             #top1 = output.argmax(1)
             # highest possibility
             #input = top1
-            # teacher enforcing
-            ainput = torch.IntTensor(atarget[:,t])
-            tinput = torch.IntTensor(ttarget[:,t])
+            # if training == True, then teacher enforcing
+            if self.training == True:
+                ainput = torch.IntTensor(atarget[:,t])
+                tinput = torch.IntTensor(ttarget[:,t])
+            else:
+                ainput = int(torch.argmax(aoutputs[t-1]))
+                tinput = int(torch.argmax(toutputs[t-1]))
             #print("new inputs: ",ainput.shape, tinput.shape)
 
         # transpose outputs
@@ -151,6 +156,7 @@ class EncoderDecoder(nn.Module):
         #aoutputs = aoutputs.type(torch.IntTensor)
         aoutputs = torch.transpose(aoutputs,0,1)
         toutputs = torch.transpose(toutputs,0,1)
+        print("aoutput ",aoutputs.shape,aoutputs)
         aoutputs = torch.transpose(aoutputs,1,2)
         toutputs = torch.transpose(toutputs,1,2)
         #print ("final outputs: ", aoutputs.shape, toutputs.shape)

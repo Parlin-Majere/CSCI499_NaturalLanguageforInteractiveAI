@@ -281,12 +281,14 @@ def train_epoch(
         # calculate the loss and train accuracy and perform backprop
         # NOTE: feel free to change the parameters to the model forward pass here + outputs
         aoutput,toutput = model(inputs, labels)
-        #print("training forward pass",labels[:,0],labels[:,1],aoutput.shape,toutput.shape)
+        #print("training forward pass",labels[:,0].shape,labels[:,0],labels[:,1].shape,labels[:,1],aoutput.squeeze().shape,toutput.squeeze().shape)
 
         aloss = criterion(aoutput.squeeze(), labels[:,0].long())
         tloss = criterion(toutput.squeeze(), labels[:,1].long())
 
         loss=aloss+tloss
+
+        print(loss.shape,loss)
 
         # step optimizer and compute gradients during training
         if training:
@@ -303,11 +305,27 @@ def train_epoch(
         # TODO: add code to log these metrics
         #em = [aoutput,toutput] == labels
         #prefix_em = prefix_match([aoutput,toutput], labels)
-        #acc = 0.0
+        aacc = 0.0
+        tacc = 0.0
+        
+        em = torch.transpose(aoutput,1,2).argmax(-1)
+        for i in range(len(em)):
+            aprefix = prefix_match(em[i],labels[:,0][i])
+            aacc = aprefix+aacc
+        em = torch.transpose(toutput,1,2).argmax(-1)
+        for i in range(len(em)):
+            em = torch.transpose(toutput,1,2).argmax(-1)
+            tprefix = prefix_match(em[i],labels[:,1][i])
+            tacc = tprefix+tacc
+        #aprefix = prefix_match(aoutput,labels[:,0])
+        #tprefix = prefix_match(toutput,labels[:,1])
+
+        acc = aacc/len(em)+tacc/len(em)
 
         # logging
         epoch_loss += loss.item()
-        epoch_acc += acc.item()
+        #epoch_acc += acc.item()
+        epoch_acc += acc
 
     epoch_loss /= len(loader)
     epoch_acc /= len(loader)
