@@ -56,90 +56,138 @@ def setup_dataloader(args):
     # last part to get rid of the extra start and end tokens as they are not quite needed here.
     # very weirdly the number of instructions in training dataset are all 11 with validation being 12
     # don't know if it is going to cause a problem
-    train_pad_length = pad_length * 11 - 20
-    val_pad_length = pad_length * 12 - 22
+    #train_pad_length = pad_length * 11
+    #val_pad_length = pad_length * 12
+    ins_pad_length = 380
+    target_pad_length = 30
+    action_pad_length = 30
 
-    print(train_all_string[100])
-    for epi in train_all_string[100]:
-        print(epi)
+    last_t_length = 0
+    last_a_length = 0
+    maxt = 0
+    maxa = 0
 
     # for each episode, process strings, and then tokenize
     for episode in train_all_string:
-        epi = []
         # each entry in an episode is processed individually
         ins = []
-        high = []
+        actionl = []
+        targetl = []
 
         # append start token
         ins.append(1)
-        high.append(1)
+        actionl.append(1)
+        targetl.append(1)
 
         # since doing seq2seq, need to combine all single entries in episode into a single sequence
-        # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
+        # in the form of ["compounded_low_level instructions", [[a,a,a,...,a],[t,t,t,...,t]]
         for instruction, [action, target] in episode:
-            normalized = preprocess_string(instruction)
+            normalized = preprocess_string(instruction).split()
+            #print(len(normalized))
             for word in normalized:
                 if word in v2i:
                     ins.append(v2i[word])
                 else:
                     ins.append(3)
-            high.append(a2i[action])
-            high.append(t2i[target])
+            actionl.append(a2i[action])
+            targetl.append(t2i[target])
 
         # append end token
         ins.append(2)
-        high.append(2)
+        actionl.append(2)
+        targetl.append(2)
 
         # pad the instruction sequence
-        while (len(ins)<train_pad_length-1):
+        while (len(ins)<ins_pad_length):
             ins.append(0)
-        
-        # append to episode
-        epi.append(ins)
-        epi.append(high)
+        while (len(targetl)<target_pad_length):
+            targetl.append(0)
+        while (len(actionl)<action_pad_length):
+            actionl.append(0)
 
+        #if last_a_length != len(actionl):
+        #    print("different action sequence length!", len(actionl))
+        #if last_t_length != len(targetl):
+        #    print("different target sequence!", len(targetl))
+        #if len(actionl)>maxa:
+        #    maxa = len(actionl)
+        #if len(targetl)>maxt:
+        #    maxt = len(targetl)
+        
+        #last_a_length = len(actionl)
+        #last_t_length = len(targetl)
+        
+        #print("max", maxa,maxt)
         #append to train_list
-        train_list.append(epi)
+        insi = torch.IntTensor(ins)
+        targeti = torch.IntTensor(targetl)
+        actioni = torch.IntTensor(actionl)
+        target_tensor = torch.IntTensor([actionl,targetl])
+
+        train_list.append((insi,target_tensor))
 
     # same thing for validation data
     for episode in val_all_string:
-        epi = []
-        # each entry in an episode is processed individually
+       # each entry in an episode is processed individually
         ins = []
-        high = []
+        actionl = []
+        targetl = []
 
         # append start token
         ins.append(1)
-        high.append(1)
+        actionl.append(1)
+        targetl.append(1)
+
         # since doing seq2seq, need to combine all single entries in episode into a single sequence
-        # in the form of ["compounded_low_level instructions", [a,t,a, ... , t]]
+        # in the form of ["compounded_low_level instructions", [[a,a,a,...,a],[t,t,t,...,t]]
         for instruction, [action, target] in episode:
-            normalized = preprocess_string(instruction)
+            normalized = preprocess_string(instruction).split()
+            #print(len(normalized))
             for word in normalized:
                 if word in v2i:
                     ins.append(v2i[word])
                 else:
                     ins.append(3)
-            high.append(a2i[action])
-            high.append(t2i[target])
+            actionl.append(a2i[action])
+            targetl.append(t2i[target])
 
         # append end token
         ins.append(2)
-        high.append(2)
+        actionl.append(2)
+        targetl.append(2)
 
         # pad the instruction sequence
-        while (len(ins)<val_pad_length-1):
+        while (len(ins)<ins_pad_length):
             ins.append(0)
+        while (len(targetl)<target_pad_length):
+            targetl.append(0)
+        while (len(actionl)<action_pad_length):
+            actionl.append(0)
         
-        # append to episode
-        epi.append(ins)
-        epi.append(high)
 
         #append to train_list
-        val_list.append(epi)
+        insi = torch.IntTensor(ins)
+        targeti = torch.IntTensor(targetl)
+        actioni = torch.IntTensor(actionl)
+        target_tensor = torch.IntTensor([actionl,targetl])
 
-    train_loader = DataLoader(train_list,batch_size=args.batch_size, shuffle=True)
+
+        val_list.append((insi,target_tensor))
+    
+    #for insi,target_tensor in val_list:
+    #    print("val: ",target_tensor[0],target_tensor[1])
+    #print("val: ",val_list[0][1][0],val_list[0][1][1]) 
+
+    print("train list size: ", len(train_list))
+    print("val list size: ",len(val_list))
+
+
+
+
+    train_loader = DataLoader(train_list, batch_size=args.batch_size, shuffle=True)
+
     val_loader = DataLoader(val_list, batch_size=args.batch_size, shuffle=True)
+
     return train_loader, val_loader, (v2i, i2v, a2i, i2a, t2i, i2t)
 
 
@@ -165,15 +213,18 @@ def setup_model(args, map, device):
     # of feeding the model prediction into the recurrent model,
     # you will give the embedding of the target token.
     # ===================================================== #
-    print(map)
-    input_dim = len(input)
-    output_dim = len(target)
+    #print(map)
+    (v2i, i2v, a2i, i2a, t2i, i2t) = map
+    #print("action dict: ",a2i,"target dict: ",t2i)
+    input_dim = len(v2i)
+    output_dim = len(a2i)+len(t2i)
+    target_size = [len(a2i),len(t2i)]
     embedding_dim = 256
     hidden_dim = 512
-    encoder = Encoder(input_dim, embedding_dim, hidden_dim)
-    decoder = Decoder(output_dim, embedding_dim, hidden_dim)
+    encoder = Encoder(input_dim, hidden_dim, embedding_dim, device )
+    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device)
 
-    model = EncoderDecoder(encoder,decoder)
+    model = EncoderDecoder(encoder,decoder, device).to(device)
     return model
 
 
@@ -208,7 +259,7 @@ def train_epoch(
     # and autoregressively predict the target label by selecting
     # the token with the highest probability at each step.
     # Note this is slightly different from the forward pass of
-    # your decoder because you want to pick the token
+    # your z because you want to pick the token
     # with the highest probability instead of using the
     # teacher-forced token.
 
@@ -229,9 +280,13 @@ def train_epoch(
 
         # calculate the loss and train accuracy and perform backprop
         # NOTE: feel free to change the parameters to the model forward pass here + outputs
-        output = model(inputs, labels)
+        aoutput,toutput = model(inputs, labels)
+        #print("training forward pass",labels[:,0],labels[:,1],aoutput.shape,toutput.shape)
 
-        loss = criterion(output.squeeze(), labels[:, 0].long())
+        aloss = criterion(aoutput.squeeze(), labels[:,0].long())
+        tloss = criterion(toutput.squeeze(), labels[:,1].long())
+
+        loss=aloss+tloss
 
         # step optimizer and compute gradients during training
         if training:
@@ -246,9 +301,9 @@ def train_epoch(
         # Feel free to change the input to these functions.
         """
         # TODO: add code to log these metrics
-        em = output == labels
-        prefix_em = prefix_em(output, labels)
-        acc = 0.0
+        #em = [aoutput,toutput] == labels
+        #prefix_em = prefix_match([aoutput,toutput], labels)
+        #acc = 0.0
 
         # logging
         epoch_loss += loss.item()
@@ -284,8 +339,7 @@ def train(args, model, loaders, optimizer, criterion, device):
     # In each epoch we compute loss on each sample in our dataset and update the model
     # weights via backpropagation
     model.train()
-
-    for epoch in tqdm.tqdm(range(args.num_epochs)):
+    for epoch in tqdm.tqdm(range(int(args.num_epochs))):
 
         # train single epoch
         # returns loss for action and target prediction and accuracy

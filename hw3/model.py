@@ -11,7 +11,7 @@ class Encoder(nn.Module):
     TODO: edit the forward pass arguments to suit your needs
     """
 
-    def __init__(self, input_dim, hidden_dim, embedding_dim):
+    def __init__(self, input_dim, hidden_dim, embedding_dim, device):
         # will be using concanated inputs for the model
         super(Encoder, self).__init__()
         self.hidden_dim = hidden_dim
@@ -19,15 +19,16 @@ class Encoder(nn.Module):
         self.embedding_dim = embedding_dim
         self.embedding = nn.Embedding(input_dim,embedding_dim)
         # some RNN, using LSTM here
-        self.lstm = nn.LSTM(embedding_dim,hidden_dim)
+        self.lstm = nn.LSTM(embedding_dim,hidden_dim, batch_first=True)
 
 
     def forward(self, x):
-        embedded = self.embedding(x).view(1,1,-1)
+        embedded = self.embedding(x)
+        #print("encode embeding",embedded.shape)
         #output not needed
         output, (hn, cn) = self.lstm(embedded)
 
-        return  hn, cn
+        return  output, hn, cn
 
 
 class Decoder(nn.Module):
@@ -38,28 +39,39 @@ class Decoder(nn.Module):
     TODO: edit the forward pass arguments to suit your needs
     """
 
-    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size):
+    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, device):
         super(Decoder, self).__init__()
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        self.embedding_dim = embedding_dim
+        self.embedding_dim = embedding_dim 
         self.target_size = target_size
         # separate embeddings for action and target
-        self.target_embedding = nn.Embedding(output_dim, target_size[0])
-        self.action_embedding = nn.Embedding(output_dim, target_size[1])
+        self.embedding = nn.Embedding(output_dim, embedding_dim)
+        #self.action_embedding = nn.Embedding(output_dim, embedding_dim)
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-        self.fc = nn.Linear(hidden_dim,output_dim)
+        self.lstm = nn.LSTM(embedding_dim*2, hidden_dim, batch_first=False)
+
+        # two separate prediciton heads
+        self.tfc = nn.Linear(hidden_dim, target_size[1])
+        self.afc = nn.Linear(hidden_dim, target_size[0])
 
 
-    def forward(self, input, hn, cn):
-        input = input.unsqueeze(0)
-        t_embedded = self.target_embedding(input)
-        a_embedded = self.action_embedding(input)
-        embedded = torch.concat(t_embedded,a_embedded)
+    def forward(self, tinput, ainput, hn, cn):
+        #print("decoder tinput: ",tinput.shape)
+        #print("decoder ainput: ",ainput.shape)
+        tinput = tinput.unsqueeze(0)
+        ainput = ainput.unsqueeze(0)
+        tembedded = self.embedding(tinput)
+        aembedded = self.embedding(ainput)
+        embedded = torch.concat((aembedded,tembedded),dim=2)
+        #print("target embedding: ", embedded.shape)
         output,(hn,cn) = self.lstm(embedded, (hn,cn))
-        prediction = self.fc(output.squeeze(0))
-        return prediction, hn, cn
+        #print("decoder output: ",output.shape)
+        tprediction = self.tfc(output.squeeze(0))
+        aprediction = self.afc(output.squeeze(0))
+        #print("prediction shape: ",tprediction.shape)
+        #print("predictions ",aprediction,tprediction)
+        return tprediction, aprediction, hn, cn
 
 class EncoderDecoder(nn.Module):
     """
@@ -67,29 +79,80 @@ class EncoderDecoder(nn.Module):
     TODO: edit the forward pass arguments to suit your needs
     """
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, device):
         super(EncoderDecoder, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
+        self.device = device
+
         assert encoder.hidden_dim == decoder.hidden_dim
 
     def forward(self, input, target):
-        batch_size = target.shape[1]
-        target_length = target.shape[0]
-        target_size = self.decoder.output_dim
-        outputs = torch.zeros(target_length, batch_size, target_size)
-        hn,cn = self.encoder(input)
+        #print("target shape: ",target.shape)
+        #print("target[0] shape: ",target.shape)
+        #print("encoderdecoder input: ", input.shape)
+        atarget = []
+        ttarget = []
+        for pairs in target:
+            atarget.append(pairs[0].tolist())
+            ttarget.append(pairs[1].tolist())
+        
+        batch_size = target.shape[0]
+        target_length = target.shape[2]
+        #print("ttarget shape: ",self.decoder.target_size)
+        atarget_size = self.decoder.target_size[0]
+        ttarget_size = self.decoder.target_size[1]
+        #print("atarget/ttarget size: ", atarget_size, ttarget_size)
+        toutputs = torch.zeros(target_length, batch_size, ttarget_size)
+        aoutputs = torch.zeros(target_length, batch_size, atarget_size)
+        #toutputs = torch.zeros(target_length, batch_size)
+        #aoutputs = torch.zeros(target_length, batch_size)
+        encoder_output, hn,cn = self.encoder(input)
+        atarget = torch.IntTensor(atarget)
+        ttarget = torch.IntTensor(ttarget)
+        #print ("toutputs shape: ", toutputs.shape)
+        #print(atarget,ttarget)
+        #print("ainput shape ",atarget.shape[1])
+        #print("tinput shape ",ttarget.shape[1])
 
-        input = target[0,:]
+        # take only the tokens
+        ainput = atarget[:,0]
+        tinput = ttarget[:,0]
+        #print("input shapes", ainput.shape,tinput.shape)
+        #print("ainput, tinput: ",ainput.shape,tinput.shape)
+        #print(hn.shape)
+        #print(cn.shape)
 
         # teacher enforcing / highest possibility
         for t in range(1,target_length):
-            output, hn, cn = self.decoder(input,hn,cn)
-            outputs[t]=output
-            top1 = output.argmax(1)
+            #print("tinput: ",tinput.shape)
+            #print("ainput: ",ainput.shape)
+            #print("hn: ", hn.shape)
+            #print("cn: ", cn.shape)
+            toutput, aoutput, hn, cn = self.decoder(tinput,ainput,hn,cn)
+            #print("shape of outputs: ", toutput.shape,aoutput.shape)
+            #print(toutput, aoutput)
+            # most likely word out of the dictionary
+            toutputs[t] = toutput
+            aoutputs[t] = aoutput
+            #toutputs[t]=torch.argmax(toutput,dim=1)
+            #aoutputs[t]=torch.argmax(aoutput,dim=1)
+            #print("likelihood: ",aoutputs[t].shape,toutputs[t].shape)
+            #top1 = output.argmax(1)
             # highest possibility
             #input = top1
             # teacher enforcing
-            input = target[t]
-        
-        return outputs
+            ainput = torch.IntTensor(atarget[:,t])
+            tinput = torch.IntTensor(ttarget[:,t])
+            #print("new inputs: ",ainput.shape, tinput.shape)
+
+        # transpose outputs
+        #toutputs = toutputs.type(torch.IntTensor)
+        #aoutputs = aoutputs.type(torch.IntTensor)
+        aoutputs = torch.transpose(aoutputs,0,1)
+        toutputs = torch.transpose(toutputs,0,1)
+        aoutputs = torch.transpose(aoutputs,1,2)
+        toutputs = torch.transpose(toutputs,1,2)
+        #print ("final outputs: ", aoutputs.shape, toutputs.shape)
+        #print(aoutputs,toutputs)
+        return aoutputs,toutputs
