@@ -14,6 +14,7 @@ class Encoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, embedding_dim, device):
         # will be using concanated inputs for the model
         super(Encoder, self).__init__()
+        self.device = device
         self.hidden_dim = hidden_dim
         self.input_dim = input_dim
         self.embedding_dim = embedding_dim
@@ -41,6 +42,7 @@ class Decoder(nn.Module):
 
     def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, device):
         super(Decoder, self).__init__()
+        self.device = device
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.embedding_dim = embedding_dim 
@@ -59,8 +61,9 @@ class Decoder(nn.Module):
     def forward(self, tinput, ainput, hn, cn):
         #print("decoder tinput: ",tinput.shape)
         #print("decoder ainput: ",ainput.shape)
-        tinput = tinput.unsqueeze(0)
-        ainput = ainput.unsqueeze(0)
+        if (tinput.type() != 'int'):
+            tinput = tinput.unsqueeze(0)
+            ainput = ainput.unsqueeze(0)
         tembedded = self.embedding(tinput)
         aembedded = self.embedding(ainput)
         embedded = torch.concat((aembedded,tembedded),dim=2)
@@ -104,13 +107,13 @@ class EncoderDecoder(nn.Module):
         atarget_size = self.decoder.target_size[0]
         ttarget_size = self.decoder.target_size[1]
         #print("atarget/ttarget size: ", atarget_size, ttarget_size)
-        toutputs = torch.zeros(target_length, batch_size, ttarget_size)
-        aoutputs = torch.zeros(target_length, batch_size, atarget_size)
+        toutputs = torch.zeros(target_length, batch_size, ttarget_size,device=self.device)
+        aoutputs = torch.zeros(target_length, batch_size, atarget_size,device=self.device)
         #toutputs = torch.zeros(target_length, batch_size)
         #aoutputs = torch.zeros(target_length, batch_size)
         encoder_output, hn,cn = self.encoder(input)
-        atarget = torch.IntTensor(atarget)
-        ttarget = torch.IntTensor(ttarget)
+        atarget = (torch.tensor(atarget,dtype=torch.long)).to(self.device)
+        ttarget = (torch.tensor(ttarget,dtype=torch.long)).to(self.device)
         #print ("toutputs shape: ", toutputs.shape)
         #print(atarget,ttarget)
         #print("ainput shape ",atarget.shape[1])
@@ -144,11 +147,16 @@ class EncoderDecoder(nn.Module):
             #input = top1
             # if training == True, then teacher enforcing
             if self.training == True:
-                ainput = torch.IntTensor(atarget[:,t])
-                tinput = torch.IntTensor(ttarget[:,t])
+                ainput = (torch.tensor(atarget[:,t],dtype=torch.long)).to(self.device)
+                #print("ainputs: ",ainput.shape,ainput)
+                tinput = (torch.tensor(ttarget[:,t],dtype=torch.long)).to(self.device)
             else:
-                ainput = int(torch.argmax(aoutputs[t-1]))
-                tinput = int(torch.argmax(toutputs[t-1]))
+                #print("aoutputs: ",aoutputs.shape,aoutputs)
+                aprediction = torch.argmax(aoutputs,-1)
+                tprediction = torch.argmax(toutputs,-1)
+                ainput = aprediction[t-1]
+                tinput = tprediction[t-1]
+                #print("ainput: ",ainput.shape,ainput)
             #print("new inputs: ",ainput.shape, tinput.shape)
 
         # transpose outputs
@@ -156,7 +164,7 @@ class EncoderDecoder(nn.Module):
         #aoutputs = aoutputs.type(torch.IntTensor)
         aoutputs = torch.transpose(aoutputs,0,1)
         toutputs = torch.transpose(toutputs,0,1)
-        print("aoutput ",aoutputs.shape,aoutputs)
+        #print("aoutput ",aoutputs.shape,aoutputs)
         aoutputs = torch.transpose(aoutputs,1,2)
         toutputs = torch.transpose(toutputs,1,2)
         #print ("final outputs: ", aoutputs.shape, toutputs.shape)

@@ -1,4 +1,4 @@
-import tqdm
+from tqdm import tqdm
 import torch
 import argparse
 from sklearn.metrics import accuracy_score
@@ -31,6 +31,12 @@ def setup_dataloader(args):
     # Hint: use the helper functions provided in utils.py
     # ===================================================== #
     
+    # device
+    if (args.force_cpu):
+        device = "cpu"
+    else:
+        device = "cuda"
+
     # tokenization
     # read json file and convert to a single string
     json_file = open(args.in_data_fn,"r")
@@ -123,6 +129,10 @@ def setup_dataloader(args):
         targeti = torch.IntTensor(targetl)
         actioni = torch.IntTensor(actionl)
         target_tensor = torch.IntTensor([actionl,targetl])
+        insi.to(device)
+        targeti.to(device)
+        actioni.to(device)
+        target_tensor.to(device)
 
         train_list.append((insi,target_tensor))
 
@@ -170,6 +180,10 @@ def setup_dataloader(args):
         targeti = torch.IntTensor(targetl)
         actioni = torch.IntTensor(actionl)
         target_tensor = torch.IntTensor([actionl,targetl])
+        insi.to(device)
+        targeti.to(device)
+        actioni.to(device)
+        target_tensor.to(device)
 
 
         val_list.append((insi,target_tensor))
@@ -181,7 +195,9 @@ def setup_dataloader(args):
     print("train list size: ", len(train_list))
     print("val list size: ",len(val_list))
 
-
+    # to save my life
+    train_list = train_list[:40000]
+    val_list = val_list[:1000]
 
 
     train_loader = DataLoader(train_list, batch_size=args.batch_size, shuffle=True)
@@ -221,8 +237,8 @@ def setup_model(args, map, device):
     target_size = [len(a2i),len(t2i)]
     embedding_dim = 256
     hidden_dim = 512
-    encoder = Encoder(input_dim, hidden_dim, embedding_dim, device )
-    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device)
+    encoder = Encoder(input_dim, hidden_dim, embedding_dim, device).to(device)
+    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
 
     model = EncoderDecoder(encoder,decoder, device).to(device)
     return model
@@ -288,7 +304,7 @@ def train_epoch(
 
         loss=aloss+tloss
 
-        print(loss.shape,loss)
+        #print(loss.shape,loss)
 
         # step optimizer and compute gradients during training
         if training:
@@ -357,7 +373,10 @@ def train(args, model, loaders, optimizer, criterion, device):
     # In each epoch we compute loss on each sample in our dataset and update the model
     # weights via backpropagation
     model.train()
-    for epoch in tqdm.tqdm(range(int(args.num_epochs))):
+    for epoch in tqdm(range(int(args.num_epochs))):
+
+        # adding line to set model to train after eval set it to .eval()
+        model.train()
 
         # train single epoch
         # returns loss for action and target prediction and accuracy
@@ -376,7 +395,7 @@ def train(args, model, loaders, optimizer, criterion, device):
         # run validation every so often
         # during eval, we run a forward pass through the model and compute
         # loss and accuracy but we don't update the model weights
-        if epoch % args.val_every == 0:
+        if epoch % int(args.val_every) == 0:
             val_loss, val_acc = validate(
                 args,
                 model,
