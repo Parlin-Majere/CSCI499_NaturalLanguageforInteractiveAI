@@ -45,9 +45,10 @@ class Decoder(nn.Module):
     TODO: edit the forward pass arguments to suit your needs
     """
 
-    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, device):
+    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, attention, device):
         super(Decoder, self).__init__()
         self.device = device
+        self.attention = attention
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.embedding_dim = embedding_dim 
@@ -66,7 +67,7 @@ class Decoder(nn.Module):
         self.dropout = nn.Dropout(0.4)
 
 
-    def forward(self, tinput, ainput, hn, cn):
+    def forward(self, tinput, ainput, hn, cn, encoder_outputs):
         #print("decoder tinput: ",tinput.shape)
         #print("decoder ainput: ",ainput.shape)
         if (tinput.type() != 'int'):
@@ -79,14 +80,53 @@ class Decoder(nn.Module):
         aembedded = self.dropout(aembedded)
 
         embedded = torch.concat((aembedded,tembedded),dim=2)
+
+        print("attn: ",hn.shape,hn,encoder_outputs.shape,encoder_outputs)
+
+        a = self.attention(hn,encoder_outputs)
+
+        a = a.unsqueeze(1)
+
+        encoder_outputs = encoder_outputs.permute(1,0,1)
+
+        weighted = torch.bmm(a,encoder_outputs)
+
+        lstm_input = torch,concat((embedded,weighted),dim=2)
+
         #print("target embedding: ", embedded.shape)
-        output,(hn,cn) = self.lstm(embedded, (hn,cn))
+        #output,(hn,cn) = self.lstm(embedded, (hn,cn))
+        output,(hn,cn) = self.lstm(lstm_input,hn.unsqueeze(0))
         #print("decoder output: ",output.shape)
-        tprediction = self.tfc(output.squeeze(0))
-        aprediction = self.afc(output.squeeze(0))
+        #tprediction = self.tfc(output.squeeze(0))
+        #aprediction = self.afc(output.squeeze(0))
+        tprediction = self.tfc(torch.concat((output,weighted,embedded),dim=1))
+        aprediction = self.afc(torch.concat((output,weighted,embedded),dim=1))
         #print("prediction shape: ",tprediction.shape)
         #print("predictions ",aprediction,tprediction)
         return tprediction, aprediction, hn, cn
+
+class Attention(nn.Module):
+    """
+    Separate class for attention layer for easier management
+    """
+    def __init__(self,encoder_hidden_dim,decoder_hidden_dim):
+        super(Attention,self).__init__()
+        self.attn = nn.Linear(encoder_hidden_dim+decoder_hidden_dim,decoder_hidden_dim)
+        self.v = nn.Linear(decoder_hidden_dim, 1, bias=False)
+    
+    def forward(self, hidden, encoder_outputs):
+        batch_size = encoder_outputs.shape[1]
+        src_len = encoder_outputs.shape[0]
+
+        hidden = hidden.unsqueeze(1).repeat(1,src_len,1)
+
+        encoder_outputs = encoder_outputs.permute(1,0,1)
+
+        energy = torch.tanh(self.attn(torch.concat((hidden,encoder_outputs),dim=2)))
+
+        attention = self.v(energy).squeeze(2)
+
+        return torch.nn.functional.softmax(attention,dim=1)
 
 class EncoderDecoder(nn.Module):
     """
@@ -145,7 +185,7 @@ class EncoderDecoder(nn.Module):
             #print("ainput: ",ainput.shape)
             #print("hn: ", hn.shape)
             #print("cn: ", cn.shape)
-            toutput, aoutput, hn, cn = self.decoder(tinput,ainput,hn,cn)
+            toutput, aoutput, hn, cn = self.decoder(tinput,ainput,hn,cn,encoder_output)
             #print("shape of outputs: ", toutput.shape,aoutput.shape)
             #print(toutput, aoutput)
             # most likely word out of the dictionary

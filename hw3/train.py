@@ -10,8 +10,9 @@ from utils import (
     build_output_tables,
     prefix_match
 )
-
-from model import Encoder, Decoder, EncoderDecoder
+#from model import Encoder, Decoder, EncoderDecoder
+from attnmodel import Encoder, Decoder, EncoderDecoder, Attention
+import matplotlib.pyplot as plt
 
 
 def setup_dataloader(args):
@@ -196,8 +197,7 @@ def setup_dataloader(args):
     print("val list size: ",len(val_list))
 
     # to save my life
-    train_list = train_list[:40000]
-    val_list = val_list[:1000]
+    train_list = train_list[:7000]
 
 
     train_loader = DataLoader(train_list, batch_size=args.batch_size, shuffle=True)
@@ -237,8 +237,10 @@ def setup_model(args, map, device):
     target_size = [len(a2i),len(t2i)]
     embedding_dim = 256
     hidden_dim = 512
+    attention = (hidden_dim,hidden_dim)
     encoder = Encoder(input_dim, hidden_dim, embedding_dim, device).to(device)
-    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
+    #decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
+    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, attention, device).to(device)
 
     model = EncoderDecoder(encoder,decoder, device).to(device)
     return model
@@ -255,7 +257,7 @@ def setup_optimizer(args, model):
     # and target predictions. Also initialize your optimizer.
     # ===================================================== #
     criterion = torch.nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.00001)
 
     return criterion, optimizer
 
@@ -372,6 +374,12 @@ def train(args, model, loaders, optimizer, criterion, device):
     # Train model for a fixed number of epochs
     # In each epoch we compute loss on each sample in our dataset and update the model
     # weights via backpropagation
+
+    # Store Information for graph
+    tl = []
+    vl = []
+    va = []
+
     model.train()
     for epoch in tqdm(range(int(args.num_epochs))):
 
@@ -391,6 +399,7 @@ def train(args, model, loaders, optimizer, criterion, device):
 
         # some logging
         print(f"train loss : {train_loss}")
+        tl.append(train_loss)
 
         # run validation every so often
         # during eval, we run a forward pass through the model and compute
@@ -406,12 +415,30 @@ def train(args, model, loaders, optimizer, criterion, device):
             )
 
             print(f"val loss : {val_loss} | val acc: {val_acc}")
+            vl.append(val_loss)
+            va.append(val_acc)
 
     # ================== TODO: CODE HERE ================== #
     # Task: Implement some code to keep track of the model training and
     # evaluation loss. Use the matplotlib library to plot
     # 3 figures for 1) training loss, 2) validation loss, 3) validation accuracy
     # ===================================================== #
+    trainepoch = range(0,len(tl))
+    valepoch = range(0,len(vl))
+
+    plt.plot(trainepoch, tl)
+    plt.xlabel("training epoch")
+    plt.ylabel("training loss")
+    plt.title("training loss")
+    plt.savefig("./statistic-encoderdecoder/training.pdf")
+    plt.clf()
+
+    plt.plot(valepoch, vl, label="val loss")
+    plt.plot(valepoch, va, label="val acc")
+    plt.title("validation")
+    plt.savefig("./statistic-encoderdecoder/val.pdf")
+    plt.clf()
+
 
 
 def main(args):
