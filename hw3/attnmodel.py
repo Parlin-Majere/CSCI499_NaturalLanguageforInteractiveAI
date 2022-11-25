@@ -97,10 +97,14 @@ class Decoder(nn.Module):
 
         energy = self.relu(self.energy(torch.concat((hn_reshape, encoder_outputs), dim=2)))
 
+        # this gives the energy softmaxed, alpha that is
         attention = self.softmax(energy)
         #print("attention shape: ", attention.shape)
 
         attention = attention.permute(1,2,0)
+        # if hard-attention, needs to argmax this one
+        # then there should be someway to get it done so we are collecting the whole thing
+        # and at the end of the episode, go ahead and softmax that vector.
         #print("attention reshape: ",attention.shape)
         encoder_outputs = encoder_outputs.permute(1,0,2)
         #print("encoder reshape: ",encoder_outputs.shape)
