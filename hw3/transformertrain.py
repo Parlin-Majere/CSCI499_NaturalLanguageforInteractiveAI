@@ -12,12 +12,8 @@ from utils import (
     custom_match
 )
 # use for basic encoder decoder
-#from model import Encoder, Decoder, EncoderDecoder
-
-# use for encoder with attention decoder
-from attnmodel import Encoder, Decoder, EncoderDecoder
-import matplotlib.pyplot as plt
-
+from transformermodel import Transformer
+import matplotlib as plt
 
 
 def setup_dataloader(args):
@@ -243,13 +239,16 @@ def setup_model(args, map, device):
     target_size = [len(a2i),len(t2i)]
     embedding_dim = 256
     hidden_dim = 512
-    encoder = Encoder(input_dim, hidden_dim, embedding_dim, device).to(device)
-    #decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
-    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
+    src_vocab_size = len(v2i)
+    trg_vocab_size=[len(a2i),len(t2i)]
+    src_pad_idx = 0
+    trg_pad_idx = 0
 
     #print(decoder)
 
-    model = EncoderDecoder(encoder,decoder, device).to(device)
+    model = Transformer(
+        src_vocab_size,trg_vocab_size,src_pad_idx,trg_pad_idx
+    ).to(device)
     return model
 
 
@@ -307,6 +306,9 @@ def train_epoch(
         # NOTE: feel free to change the parameters to the model forward pass here + outputs
         aoutput,toutput = model(inputs, labels)
         #print("training forward pass",labels[:,0].shape,labels[:,0],labels[:,1].shape,labels[:,1],aoutput.squeeze().shape,toutput.squeeze().shape)
+
+        aoutput = torch.transpose(aoutput,1,2)
+        toutput = torch.transpose(toutput,1,2)
 
         aloss = criterion(aoutput.squeeze(), labels[:,0].long())
         tloss = criterion(toutput.squeeze(), labels[:,1].long())
@@ -441,19 +443,20 @@ def train(args, model, loaders, optimizer, criterion, device):
     plt.xlabel("training epoch")
     plt.ylabel("training loss")
     plt.title("training loss")
-    plt.savefig("./statistic-attndecoder-local/training.pdf")
+    plt.savefig("./statistic-transformer/training.pdf")
     plt.clf()
 
     plt.plot(valepoch, vl, label="val loss")
     plt.plot(valepoch, va, label="val acc")
     plt.title("validation")
-    plt.savefig("./statistic-attndecoder-local/val.pdf")
+    plt.savefig("./statistic-transformer/val.pdf")
     plt.clf()
 
 
 
 def main(args):
     device = get_device(args.force_cpu)
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # get dataloaders
     train_loader, val_loader, maps = setup_dataloader(args)

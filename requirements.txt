@@ -6,3 +6,4 @@ tqdm
 scikit_learn
 gensim
 spacy
+transformers

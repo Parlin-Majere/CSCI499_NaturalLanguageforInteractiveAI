@@ -182,13 +182,24 @@ class EncoderDecoder(nn.Module):
         #print(hn.shape)
         #print(cn.shape)
 
+        #print("encoder ",encoder_output.shape,hn.shape,cn.shape,target_length)
+        # default for global attention
+        decoder_encoder_input = encoder_output
+
         # teacher enforcing / highest possibility
         for t in range(1,target_length):
             #print("tinput: ",tinput.shape)
             #print("ainput: ",ainput.shape)
             #print("hn: ", hn.shape)
             #print("cn: ", cn.shape)
-            toutput, aoutput, hn, cn = self.decoder(tinput,ainput,hn,cn,encoder_output)
+
+            # defaulted to be global attention, here are the codes for local attention
+            # partially mapping 380 -> 30
+            start_index = (t-1)*12
+            end_index = t*12
+            decoder_encoder_input = encoder_output[:,start_index:end_index,:]
+
+            toutput, aoutput, hn, cn = self.decoder(tinput,ainput,hn,cn,decoder_encoder_input)
             #print("shape of outputs: ", toutput.shape,aoutput.shape)
             #print(toutput, aoutput)
             # most likely word out of the dictionary

@@ -96,3 +96,26 @@ def prefix_match(predicted_labels, gt_labels):
     pm = (1.0 / seq_length) * i
 
     return pm
+
+def custom_match(predicted_labels, gt_labels):
+    # input sequences, then return the percent of each sequence that are same, with option to test only for the ones that are meaningful (disregard paddings after eos)
+    # dumb implementation because my brain processor is fried to golden brown borderline overcooked to black
+    # on that note, I think brain is actually on the menu for some cultures.
+    # careful of prions though.
+
+    seq_length = len(gt_labels)
+
+    counter = 0
+    #print("counting ",predicted_labels,gt_labels)
+    for i in range(seq_length):
+        if predicted_labels[i] == gt_labels[i]:
+            counter+=1
+        if(gt_labels[i] == 2): #end token
+            break
+    #print(counter)
+    
+    #print("testing val_acc: ", predicted_labels,gt_labels)
+    percent = (0.5/i)*counter
+    #print(percent)
+
+    return percent
