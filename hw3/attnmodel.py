@@ -20,8 +20,10 @@ class Encoder(nn.Module):
         self.input_dim = input_dim
         self.embedding_dim = embedding_dim
         self.embedding = nn.Embedding(input_dim,embedding_dim)
-        # some RNN, using LSTM here
-        self.lstm = nn.LSTM(embedding_dim,hidden_dim, batch_first=True)
+        # some RNN, using LSTM here, bidirectional (maybe not needed)
+        self.lstm = nn.LSTM(embedding_dim,hidden_dim, bidirectional=True, batch_first=True)
+        self.fc_hidden = nn.Linear(hidden_dim*2, hidden_dim)
+        self.fc_cell = nn.Linear(hidden_dim*2, hidden_dim)
 
         # Try to counteract overfitting
         self.dropout = nn.Dropout(0.4)
@@ -33,6 +35,10 @@ class Encoder(nn.Module):
         #print("encode embeding",embedded.shape)
         #output not needed
         output, (hn, cn) = self.lstm(embedded)
+        hn = self.fc_hidden(torch.concat((hn[0:1],hn[1:2]),dim=2))
+        #print("hn shape: ",hn.shape)
+
+        cn = self.fc_cell(torch.concat((cn[0:1],cn[1:2]),dim=2))
 
         return  output, hn, cn
 
@@ -45,10 +51,10 @@ class Decoder(nn.Module):
     TODO: edit the forward pass arguments to suit your needs
     """
 
-    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, attention, device):
+    def __init__(self, output_dim, hidden_dim, embedding_dim, target_size, device):
         super(Decoder, self).__init__()
         self.device = device
-        self.attention = attention
+        #self.attention = attention
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
         self.embedding_dim = embedding_dim 
@@ -57,7 +63,11 @@ class Decoder(nn.Module):
         self.embedding = nn.Embedding(output_dim, embedding_dim)
         #self.action_embedding = nn.Embedding(output_dim, embedding_dim)
 
-        self.lstm = nn.LSTM(embedding_dim*2, hidden_dim, batch_first=False)
+        self.energy = nn.Linear(hidden_dim*3, 1)
+        self.softmax = nn.Softmax(dim=0)
+        self.relu = nn.ReLU()
+
+        self.lstm = nn.LSTM(hidden_dim*2 + embedding_dim*2, hidden_dim, batch_first=False)
 
         # two separate prediciton heads
         self.tfc = nn.Linear(hidden_dim, target_size[1])
@@ -81,52 +91,45 @@ class Decoder(nn.Module):
 
         embedded = torch.concat((aembedded,tembedded),dim=2)
 
-        print("attn: ",hn.shape,hn,encoder_outputs.shape,encoder_outputs)
+        encoder_outputs = torch.transpose(encoder_outputs,0,1)
+        sequence_length = encoder_outputs.shape[0]
+        hn_reshape = hn.repeat(sequence_length,1,1)
 
-        a = self.attention(hn,encoder_outputs)
+        energy = self.relu(self.energy(torch.concat((hn_reshape, encoder_outputs), dim=2)))
 
-        a = a.unsqueeze(1)
+        attention = self.softmax(energy)
+        #print("attention shape: ", attention.shape)
 
-        encoder_outputs = encoder_outputs.permute(1,0,1)
+        attention = attention.permute(1,2,0)
+        #print("attention reshape: ",attention.shape)
+        encoder_outputs = encoder_outputs.permute(1,0,2)
+        #print("encoder reshape: ",encoder_outputs.shape)
 
-        weighted = torch.bmm(a,encoder_outputs)
+        context = torch.bmm(attention,encoder_outputs).permute(1,0,2)
 
-        lstm_input = torch,concat((embedded,weighted),dim=2)
+        lstm_input = torch.concat((context,embedded),dim=2)
+
+        #a = self.attention(hn,encoder_outputs)
+
+        #a = a.unsqueeze(1)
+
+        #encoder_outputs = encoder_outputs.permute(1,0,1)
+
+        #weighted = torch.bmm(a,encoder_outputs)
+
+        #lstm_input = torch.concat((embedded,weighted),dim=2)
 
         #print("target embedding: ", embedded.shape)
-        #output,(hn,cn) = self.lstm(embedded, (hn,cn))
-        output,(hn,cn) = self.lstm(lstm_input,hn.unsqueeze(0))
+        output,(hn,cn) = self.lstm(lstm_input, (hn,cn))
+        #output,(hn,cn) = self.lstm(lstm_input,hn.unsqueeze(0))
         #print("decoder output: ",output.shape)
         #tprediction = self.tfc(output.squeeze(0))
         #aprediction = self.afc(output.squeeze(0))
-        tprediction = self.tfc(torch.concat((output,weighted,embedded),dim=1))
-        aprediction = self.afc(torch.concat((output,weighted,embedded),dim=1))
+        tprediction = self.tfc(output.squeeze(0))
+        aprediction = self.afc(output.squeeze(0))
         #print("prediction shape: ",tprediction.shape)
         #print("predictions ",aprediction,tprediction)
         return tprediction, aprediction, hn, cn
-
-class Attention(nn.Module):
-    """
-    Separate class for attention layer for easier management
-    """
-    def __init__(self,encoder_hidden_dim,decoder_hidden_dim):
-        super(Attention,self).__init__()
-        self.attn = nn.Linear(encoder_hidden_dim+decoder_hidden_dim,decoder_hidden_dim)
-        self.v = nn.Linear(decoder_hidden_dim, 1, bias=False)
-    
-    def forward(self, hidden, encoder_outputs):
-        batch_size = encoder_outputs.shape[1]
-        src_len = encoder_outputs.shape[0]
-
-        hidden = hidden.unsqueeze(1).repeat(1,src_len,1)
-
-        encoder_outputs = encoder_outputs.permute(1,0,1)
-
-        energy = torch.tanh(self.attn(torch.concat((hidden,encoder_outputs),dim=2)))
-
-        attention = self.v(energy).squeeze(2)
-
-        return torch.nn.functional.softmax(attention,dim=1)
 
 class EncoderDecoder(nn.Module):
     """

@@ -11,7 +11,7 @@ from utils import (
     prefix_match
 )
 #from model import Encoder, Decoder, EncoderDecoder
-from attnmodel import Encoder, Decoder, EncoderDecoder, Attention
+from attnmodel import Encoder, Decoder, EncoderDecoder
 import matplotlib.pyplot as plt
 
 
@@ -237,10 +237,11 @@ def setup_model(args, map, device):
     target_size = [len(a2i),len(t2i)]
     embedding_dim = 256
     hidden_dim = 512
-    attention = (hidden_dim,hidden_dim)
     encoder = Encoder(input_dim, hidden_dim, embedding_dim, device).to(device)
     #decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
-    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, attention, device).to(device)
+    decoder = Decoder(output_dim, hidden_dim, embedding_dim, target_size, device).to(device)
+
+    print(decoder)
 
     model = EncoderDecoder(encoder,decoder, device).to(device)
     return model
